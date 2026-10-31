@@ -150,3 +150,40 @@ TEST(BookMetadataCacheSizes, SpineIndexForSizeMatchesLinearScan) {
     }
   }
 }
+
+// The sequential scan answers what a lookup of every item answers.
+TEST(BookMetadataCacheSizes, ForEachSpineSizeMatchesSpineEntries) {
+  constexpr int spineCount = 100;
+  buildBook(cacheDir(), spineCount);
+  BookMetadataCache cache(cacheDir());
+  ASSERT_TRUE(cache.load());
+  std::vector<std::pair<uint32_t, int16_t>> visited;
+  ASSERT_TRUE(cache.forEachSpineSize(
+      [](void* context, const uint32_t cumulativeSize, const int16_t tocIndex) {
+        static_cast<std::vector<std::pair<uint32_t, int16_t>>*>(context)->emplace_back(cumulativeSize, tocIndex);
+      },
+      &visited));
+  ASSERT_EQ(visited.size(), static_cast<size_t>(spineCount));
+  for (int i = 0; i < spineCount; i++) {
+    const auto entry = cache.getSpineEntry(i);
+    EXPECT_EQ(visited[i].first, entry.cumulativeSize) << "spine " << i;
+    EXPECT_EQ(visited[i].second, entry.tocIndex) << "spine " << i;
+  }
+}
+
+// A book.bin cut short mid-spine reports failure instead of a partial scan.
+TEST(BookMetadataCacheSizes, ForEachSpineSizeFailsOnTruncatedFile) {
+  buildBook(cacheDir(), 100);
+  const std::string path = cacheDir() + "/book.bin";
+  std::ifstream in(path, std::ios::binary);
+  const std::string bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  const size_t href = bytes.find(chapterHref(64));
+  ASSERT_NE(href, std::string::npos);
+  BookMetadataCache cache(cacheDir());
+  ASSERT_TRUE(cache.load());
+  std::filesystem::resize_file(path, href + chapterHref(64).size());
+  int visits = 0;
+  EXPECT_FALSE(
+      cache.forEachSpineSize([](void* context, uint32_t, int16_t) { ++*static_cast<int*>(context); }, &visits));
+  EXPECT_EQ(visits, 64);
+}

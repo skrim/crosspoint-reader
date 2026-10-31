@@ -548,6 +548,30 @@ int BookMetadataCache::getSpineIndexForSize(const uint32_t size) const {
   return last;
 }
 
+bool BookMetadataCache::forEachSpineSize(const SpineSizeVisitor visit, void* const context) const {
+  if (!loaded || spineCount <= 0) return false;
+  // Own handle: getSpineEntry() moves bookFile. Entries are contiguous, so one pass skips hrefs.
+  HalFile file;
+  uint32_t pos = 0;
+  const auto u32 = [&file](uint32_t& v) { return file.read(&v, sizeof(v)) == static_cast<int>(sizeof(v)); };
+  if (!Storage.openFileForRead("BMC", cachePath + bookBinFile, file) || !file.seek(lutOffset) || !u32(pos) ||
+      !file.seek(pos)) {
+    return false;
+  }
+  // Spine entry: href length, href, cumulative size, TOC index.
+  for (int i = 0; i < spineCount; i++) {
+    uint32_t hrefLen = 0;
+    uint32_t cumulativeSize = 0;
+    int16_t tocIndex = -1;
+    if (!u32(hrefLen) || !file.seek(file.position() + hrefLen) || !u32(cumulativeSize) ||
+        file.read(&tocIndex, sizeof(tocIndex)) != static_cast<int>(sizeof(tocIndex))) {
+      return false;
+    }
+    visit(context, cumulativeSize, tocIndex);
+  }
+  return true;
+}
+
 BookMetadataCache::SpineEntry BookMetadataCache::getSpineEntry(const int index) {
   if (!loaded) {
     LOG_ERR("BMC", "getSpineEntry called but cache not loaded");

@@ -19,14 +19,16 @@ EpubReaderMenuActivity::EpubReaderMenuActivity(GfxRenderer& renderer, MappedInpu
                                                const std::string& title, const int currentPage, const int totalPages,
                                                const int bookProgressPercent, const uint8_t currentOrientation,
                                                const bool hasFootnotes, const bool hasBookmarks,
-                                               const bool hasClippings, MenuAction& selectedAction)
+                                               const bool hasClippings, ChapterLengthChart chapterChart,
+                                               MenuAction& selectedAction)
     : UiListActivity("EpubReaderMenu", renderer, mappedInput),
       selectedAction(selectedAction),
       title(title),
       pendingOrientation(currentOrientation),
       currentPage(currentPage),
       totalPages(totalPages),
-      bookProgressPercent(bookProgressPercent) {
+      bookProgressPercent(bookProgressPercent),
+      chapterChart(std::move(chapterChart)) {
   buildMenuItems(menuItems, hasFootnotes, hasBookmarks, hasClippings);
   buildMenuRowItems();
 }
@@ -217,14 +219,25 @@ void EpubReaderMenuActivity::buildScreen(UiScreen& screen) {
   // Progress summary where the old sub-header band sat.
   std::string progressLine;
   if (totalPages > 0) {
-    progressLine = std::string(tr(STR_CHAPTER_PREFIX)) + std::to_string(currentPage) + "/" +
-                   std::to_string(totalPages) + std::string(tr(STR_PAGES_SEPARATOR));
+    // "Chapter 3/42: " when the chart knows the chapter, else the plain prefix.
+    progressLine = chapterChart.current() >= 0
+                       ? std::string(tr(STR_CHAPTER)) + " " + std::to_string(chapterChart.current() + 1) + "/" +
+                             std::to_string(chapterChart.count()) + ": "
+                       : std::string(tr(STR_CHAPTER_PREFIX));
+    progressLine +=
+        std::to_string(currentPage) + "/" + std::to_string(totalPages) + std::string(tr(STR_PAGES_SEPARATOR));
   }
   progressLine += std::string(tr(STR_BOOK_PREFIX)) + std::to_string(bookProgressPercent) + "%";
   const fui::Rect band = screen.takeTop(static_cast<int16_t>(metrics.tabBarHeight));
   const int16_t pad = screen.theme().headerSidePadding;
   screen.target().text(band.inset(fui::Insets{0, pad, 0, pad}), progressLine.c_str(), screen.theme().smallText);
   screen.spacer(static_cast<int16_t>(metrics.verticalSpacing));
+
+  if (!chapterChart.empty()) {
+    const fui::Rect chart = screen.takeTop(static_cast<int16_t>(renderer.getScreenHeight() / 16),
+                                           static_cast<int16_t>(metrics.verticalSpacing));
+    chapterChart.draw(screen.target(), chart.inset(fui::Insets{0, pad, 0, pad}));
+  }
 
   // menuRowItems's labels/actionValue were set once in the constructor (see
   // buildMenuRowItems()); only rows with live values need refreshing here.

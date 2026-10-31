@@ -694,6 +694,8 @@ The UI includes Arabic and Hebrew (menus use built-in fonts with presentation-fo
 
 Press **Confirm** while reading to open the Reader Menu. From here you can access reading utilities and navigation options without leaving the book.
 
+Above the options, a bar chart shows the relative length of each chapter. The current chapter is drawn in black.
+
 The list menu remembers the selected entry while the book stays open. If that entry is no longer available, the cursor returns to the first entry. Closing the book resets the selection.
 
 Available options include:

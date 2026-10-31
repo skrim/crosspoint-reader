@@ -93,6 +93,17 @@ class Epub {
   int getSpineIndexForTocIndex(int tocIndex) const;
   int getTocIndexForSpineIndex(int spineIndex) const;
   size_t getCumulativeSpineItemSize(int spineIndex) const;
+  // Calls visit(cumulativeSize, tocIndex) for each spine item in order, reading book.bin
+  // sequentially; false if the cache is not loaded or cannot be read.
+  template <typename Visit>
+  bool forEachSpineSize(Visit& visit) const {
+    if (!bookMetadataCache || !bookMetadataCache->isLoaded()) return false;
+    return bookMetadataCache->forEachSpineSize(
+        [](void* context, const uint32_t cumulativeSize, const int16_t tocIndex) {
+          (*static_cast<Visit*>(context))(cumulativeSize, tocIndex);
+        },
+        &visit);
+  }
   // First spine index whose cumulative size reaches `bytes`, or -1 past the end.
   int getSpineIndexForSize(size_t bytes) const;
   int getSpineIndexForTextReference() const;
